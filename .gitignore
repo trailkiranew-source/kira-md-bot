@@ -1,5 +1,7 @@
+node_modules/
 session/
 temp/
-node_modules/
 .env
 cookies.txt
+ffmpeg.exe
+yt-dlp.exe
