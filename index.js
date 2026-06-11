@@ -35,21 +35,24 @@ async function startKira() {
         }
 
         if (connection === "open") {
-            console.log("\n✅ KIRA X MD Connected Successfully!");
-            console.log("👑 Owner:", process.env.OWNER_NAME);
-            console.log("🚀 Bot:", process.env.BOT_NAME);
+            console.log("✅ KIRA X MD Connected Successfully!");
         }
 
         if (connection === "close") {
+            console.log("⚠️ Connection Closed");
+            console.log("Reason:", lastDisconnect?.error);
+
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !==
                 DisconnectReason.loggedOut;
 
-            console.log("⚠️ Connection Closed");
-
             if (shouldReconnect) {
-                console.log("🔄 Reconnecting...");
-                startKira();
+                console.log("🔄 Reconnecting in 5 seconds...");
+                setTimeout(() => {
+                    startKira();
+                }, 5000);
+            } else {
+                console.log("❌ Logged Out. Delete session and scan QR again.");
             }
         }
     });
@@ -76,17 +79,22 @@ async function startKira() {
                 .trim()
                 .split(" ")[0]
                 .toLowerCase();
-                const args = text.slice(prefix.length + commandName.length).trim().split(/ +/);
-                
 
-            const command = commands.find(cmd =>
-    cmd.name === commandName ||
-    (cmd.alias && cmd.alias.includes(commandName))
-);
+            const args = text
+                .slice(prefix.length + commandName.length)
+                .trim()
+                .split(/ +/)
+                .filter(Boolean);
+
+            const command = commands.find(
+                cmd =>
+                    cmd.name === commandName ||
+                    (cmd.alias && cmd.alias.includes(commandName))
+            );
 
             if (!command) return;
 
-            await command.execute(sock, msg, args)
+            await command.execute(sock, msg, args);
         } catch (err) {
             console.log("Command Error:", err);
         }
