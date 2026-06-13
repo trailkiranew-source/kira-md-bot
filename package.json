@@ -32,6 +32,7 @@
     "genius-lyrics-api": "^3.2.1",
     "instagram-url-direct": "^2.0.7",
     "lyric-get": "^1.0.3",
+    "node-fetch": "^2.7.0",
     "node-webpmux": "^3.2.1",
     "pino": "^9.6.0",
     "pinterest-dl": "^1.0.1",

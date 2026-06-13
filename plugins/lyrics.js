@@ -1,4 +1,3 @@
-// plugins/lyrics.js - KIRA X MD
 const Genius = require('genius-lyrics');
 const Client = new Genius.Client(process.env.GENIUS_API_KEY); 
 
@@ -14,36 +13,44 @@ module.exports = {
         const query = (args && Array.isArray(args) ? args.join(' ') : '').trim();
 
         if (!query) {
-            await sock.sendMessage(jid, { text: `🎤 *LYRICS*\n\n❌ *Missing song name*\n➤ Example: ${process.env.PREFIX || '.'}lyrics Shape of You` }, { quoted: msg });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: `╭──『 🎤 *KIRA LYRICS* 』──⊷\n│ ❌ *Song name missing*\n╰──────────────⊷` 
+            }, { quoted: msg });
         }
 
         await sock.sendMessage(jid, { react: { text: "🎤", key: msg.key } });
-        const statusMsg = await sock.sendMessage(jid, { text: `🔍 *Searching* : ${query}...` });
+        const statusMsg = await sock.sendMessage(jid, { text: `🔍 *Searching for:* ${query}...` });
 
         try {
             const searches = await Client.songs.search(query);
-            if (!searches || searches.length === 0) throw new Error('No results found');
+            if (!searches || searches.length === 0) throw new Error('No results');
 
-            const firstSong = searches[0];
-            const title = firstSong.title;
-            const artist = firstSong.artist.name;
-            const lyrics = await firstSong.lyrics();
+            const song = searches[0];
+            const lyrics = await song.lyrics();
 
-            if (!lyrics || lyrics.length < 50) throw new Error('Lyrics too short');
+            let cleanLyrics = lyrics.replace(/.*Contributors.*/g, '')
+                                    .replace(/.*Lyrics.*/g, '')
+                                    .replace(/.*Embed.*/g, '')
+                                    .trim();
 
-            let lyricsText = lyrics;
-            if (lyricsText.length > 3900) {
-                lyricsText = lyricsText.substring(0, 3900) + '\n\n... (truncated)';
-            }
+            let lyricsText = cleanLyrics.length > 3500 ? cleanLyrics.substring(0, 3500) + '\n\n... (truncated)' : cleanLyrics;
 
-            const responseText = `🎤 *LYRICS* 🎤\n\n📖 *Title* : ${title}\n🎤 *Artist* : ${artist}\n\n${lyricsText}\n\n━━━━━━━━━━━━━━━━━━━\n🔹 *KIRA X MD* 🔹`;
+            // പ്രീമിയം ലുക്ക് (ഫൂട്ടർ ഒഴിവാക്കി)
+            const responseText = `╭──『 🎶 *KIRA LYRICS* 』──⊷\n` +
+                                 `│\n` +
+                                 `│ 🎵 *Title :* ${song.title}\n` +
+                                 `│ 👤 *Artist :* ${song.artist.name}\n` +
+                                 `│\n` +
+                                 `╰──────────────⊷\n\n` +
+                                 `╔══════════════════════╗\n` +
+                                 `   ${lyricsText.trim().split('\n').join('\n   ')}\n` +
+                                 `╚══════════════════════╝`;
 
             await sock.sendMessage(jid, { text: responseText, edit: statusMsg.key });
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
+            
         } catch (err) {
-            console.error("Lyrics error:", err);
-            await sock.sendMessage(jid, { text: `❌ *Not found* : "${query}"`, edit: statusMsg.key });
+            await sock.sendMessage(jid, { text: `❌ *Lyrics not found for:* "${query}"`, edit: statusMsg.key });
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
         }
     }

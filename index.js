@@ -17,11 +17,6 @@ loadPlugins();
 // Make commands globally available for menu (auto‑update)
 global.commands = commands;
 
-// Helper: fixed delay (no randomisation)
-function fixedDelay(ms = 800) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function startKira() {
     const { state, saveCreds } = await useMultiFileAuthState("./session");
 
@@ -56,8 +51,7 @@ async function startKira() {
 
             if (shouldReconnect) {
                 console.log("🔄 Reconnecting in 5 seconds...");
-                await fixedDelay(5000);
-                startKira();
+                setTimeout(() => startKira(), 5000);
             } else {
                 console.log("❌ Logged Out. Delete session and scan QR again.");
             }
@@ -101,10 +95,7 @@ async function startKira() {
 
             if (!command) return;
 
-            // Optional: show typing indicator + fixed 800ms delay
-            await sock.sendPresenceUpdate('composing', msg.key.remoteJid);
-            await fixedDelay(800);
-
+            // No delay, no typing indicator – instant execution
             await command.execute(sock, msg, args);
         } catch (err) {
             console.log("Command Error:", err);
