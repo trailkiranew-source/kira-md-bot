@@ -138,8 +138,8 @@ console.log(
 );
             if (check.status !== 200) {
                 throw new Error(
-                    `Audio link returned ${check.status}`
-                );
+    `Audio link returned ${check.status}\nURL: ${audioUrl}`
+);
             }
 
             console.log("Downloading audio...");
