@@ -12,19 +12,9 @@ module.exports = {
         let url = (args && Array.isArray(args) ? args.join(' ') : '').trim();
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
+        // URL Extractor Fix
         if (!url && quoted) {
-            const getRawText = (q) => {
-                return q.conversation || 
-                       q.extendedTextMessage?.text || 
-                       q.imageMessage?.caption || 
-                       q.videoMessage?.caption || 
-                       q.buttonsMessage?.contentText || 
-                       "";
-            };
-            let rawText = getRawText(quoted);
-            if (!rawText && quoted.extendedTextMessage?.contextInfo?.quotedMessage) {
-                rawText = getRawText(quoted.extendedTextMessage.contextInfo.quotedMessage);
-            }
+            const rawText = quoted.conversation || quoted.extendedTextMessage?.text || "";
             const match = rawText.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
             if (match) url = `https://youtu.be/${match}`;
         }
@@ -34,67 +24,56 @@ module.exports = {
         }
 
         await sock.sendMessage(jid, { react: { text: "📥", key: msg.key } });
-        let statusMsg;
 
         try {
-            statusMsg = await sock.sendMessage(jid, { text: `📥 *Downloading audio as document...*` });
-            
             let audioUrl = '';
-            let audioTitle = 'KIRA_X_MD_Audio'; 
+            let audioTitle = 'KIRA_X_MD_Audio';
 
             const apis = [
                 `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
                 `https://api.ryzendesu.vip/api/downloader/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
-                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3?url=${encodeURIComponent(url)}`
+                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`
             ];
+
+            // 🚨 Anti-Block Headers 🚨
+            const axiosConfig = {
+                timeout: 15000,
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36' }
+            };
 
             for (let i = 0; i < apis.length; i++) {
                 try {
-                    // Railway Timeout 15s
-                    const res = await axios.get(apis[i], { timeout: 15000 });
+                    const res = await axios.get(apis[i], axiosConfig);
                     const data = res.data;
                     
-                    if (data.data && data.data.dl) {
-                        audioUrl = data.data.dl;
-                        audioTitle = data.data.title || audioTitle;
-                    } else if (data.url) {
-                        audioUrl = data.url;
-                        audioTitle = data.title || audioTitle;
-                    } else if (data.result && (data.result.download_url || data.result.url || data.result.audio)) {
-                        audioUrl = data.result.download_url || data.result.url || data.result.audio;
-                        audioTitle = data.result.title || audioTitle;
+                    let tempUrl = data.data?.dl || data.url || data.result?.download_url || data.result?.url || data.result?.audio || data.result;
+                    
+                    if (tempUrl && typeof tempUrl === 'string' && tempUrl.startsWith('http')) {
+                        // ലിങ്ക് റെയിൽവേയിൽ വർക്ക് ആകുമോ എന്ന് ഒരു ഹെഡ് റിക്വസ്റ്റ് വഴി ചെക്ക് ചെയ്യുന്നു
+                        const check = await axios.head(tempUrl, { timeout: 5000 }).catch(() => null);
+                        if (check && check.status === 200) {
+                            audioUrl = tempUrl;
+                            audioTitle = data.data?.title || data.title || data.result?.title || audioTitle;
+                            break;
+                        }
                     }
-
-                    if (audioUrl && audioUrl.startsWith('http')) {
-                        break; 
-                    }
-                } catch (e) {}
+                } catch (e) { continue; }
             }
 
-            if (!audioUrl) {
-                throw new Error('All audio servers are currently busy.');
-            }
+            if (!audioUrl) throw new Error('All audio servers are currently busy.');
 
             await sock.sendMessage(jid, { 
                 document: { url: audioUrl }, 
                 mimetype: 'audio/mpeg', 
-                fileName: `${audioTitle}.mp3`, 
+                fileName: `${audioTitle.replace(/[^a-zA-Z0-9 ]/g, '')}.mp3`, 
                 caption: '*🎌 KIRA X MD YTA DOWNLOADER 🎌*' 
             }, { quoted: msg });
             
-            await sock.sendMessage(jid, { text: `✅ *Audio sent as document*`, edit: statusMsg.key });
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
         } catch (err) {
             console.error("YTA Downloader Error:", err.message);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            
-            if (statusMsg && statusMsg.key) {
-                await sock.sendMessage(jid, { text: `❌ *Failed! Server busy.*`, edit: statusMsg.key });
-            } else {
-                await sock.sendMessage(jid, { text: `❌ *Failed to download!*` }, { quoted: msg });
-            }
         }
     }
 };
