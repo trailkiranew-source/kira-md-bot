@@ -17,6 +17,11 @@ global.commands = commands;
 // Global settings
 global.botMode = 'public'; 
 global.ownerNumber = process.env.BOT_NUMBER + "@s.whatsapp.net";
+global.autoDlChats = [];
+global.autoDlAllGroups = false;
+global.autoDlAllDms = false;
+global.antiDeleteChats = [];
+global.messageStore = {};
 
 // Global API Configuration
 global.api = {
@@ -50,7 +55,7 @@ async function startKira() {
 
     const sock = makeWASocket({
         version,
-        logger: P({ level: "debug" }),
+        logger: P({ level: "silent" }),
         auth: state,
         printQRInTerminal: true 
     });
@@ -87,22 +92,192 @@ async function startKira() {
     });
 
     sock.ev.on("creds.update", saveCreds);
-
-    sock.ev.on("messages.upsert", async ({ messages }) => {
+    sock.ev.on("messages.update", async (updates) => {
     try {
-        // ✅ FIX: take the first message from the array
-        const msg = messages[0];
-        if (!msg.message) return;
 
-        // Log for debugging
-        console.log("📩 Message from", msg.key.remoteJid, ":", msg.message?.conversation || msg.message?.extendedTextMessage?.text);
+        for (const update of updates) {
 
-        const jid = msg.key.remoteJid;
-        const sender = msg.key.fromMe ? sock.user.id.split(':')[0] + "@s.whatsapp.net" : (msg.participant || jid);
-        const isOwner = sender === global.ownerNumber;
+            if (
+                update.update?.message === null ||
+                update.update?.messageStubType
+            ) {
 
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-        const prefix = process.env.PREFIX || ".";
+                const key = update.key;
+                if (!key) continue;
+
+                const jid = key.remoteJid;
+
+                if (!global.antiDeleteChats.includes(jid))
+                    continue;
+
+                const deletedMsg =
+                    global.messageStore[key.id];
+
+                if (!deletedMsg)
+                    continue;
+
+                const sender =
+                    deletedMsg.participant ||
+                    deletedMsg.key.participant ||
+                    deletedMsg.key.remoteJid;
+
+                await sock.sendMessage(
+                    global.ownerNumber,
+                    {
+                        text:
+`🚨 DELETED MESSAGE
+
+👤 USER:
+${sender}
+
+💬 CHAT:
+${jid}`
+                    }
+                );
+
+                await sock.sendMessage(
+                    global.ownerNumber,
+                    {
+                        forward: deletedMsg
+                    }
+                );
+            }
+        }
+
+    } catch (err) {
+        console.log("ANTI DELETE ERROR:", err);
+    }
+});
+// ===== WELCOME & GOODBYE EVENT =====
+    sock.ev.on('group-participants.update', async (update) => {
+        try {
+            const jid = update.id;
+            const participants = update.participants;
+            const action = update.action;
+
+            global.welcomeChats = global.welcomeChats || [];
+            global.goodbyeChats = global.goodbyeChats || [];
+            global.welcomeMessages = global.welcomeMessages || {};
+            global.goodbyeMessages = global.goodbyeMessages || {};
+
+            for (let participant of participants) {
+                // Goodbye
+                if ((action === 'remove' || action === 'leave') && global.goodbyeChats.includes(jid)) {
+                    let customMsg = global.goodbyeMessages[jid];
+                    let textMsg = customMsg ? customMsg.replace(/@user/ig, `@${participant.split('@')}`) : `👋 *@${participant.split('@')} left the group. Bye Bye!* 🏃‍♂️💨`;
+                    
+                    await sock.sendMessage(jid, { text: textMsg, mentions: [participant] });
+                }
+                
+                // Welcome
+                if ((action === 'add' || action === 'join') && global.welcomeChats.includes(jid)) {
+                    let customMsg = global.welcomeMessages[jid];
+                    let textMsg = customMsg ? customMsg.replace(/@user/ig, `@${participant.split('@')}`) : `🎉 *Welcome to the group, @${participant.split('@')}!* ✨\n\nHope you have a great time here!`;
+
+                    await sock.sendMessage(jid, { text: textMsg, mentions: [participant] });
+                }
+            }
+        } catch (err) {
+            console.log("Welcome/Goodbye Error:", err);
+        }
+    });
+
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+        try {
+            if (type !== 'notify') return; // ഡെലിവറി റിപ്പോർട്ടുകൾ ഒഴിവാക്കാൻ
+
+            const msg = messages[0];
+
+            if (msg.key && msg.key.remoteJid === 'status@broadcast') return; // സ്റ്റാറ്റസ് ഒഴിവാക്കാൻ
+
+            if (msg.key?.id) {
+                global.messageStore[msg.key.id] = msg;
+                if (Object.keys(global.messageStore).length > 5000) {
+                    delete global.messageStore[Object.keys(global.messageStore)[0]];
+                }
+            }
+
+            // Disappearing Messages ഫിക്സ്
+            let actualMessage = msg.message?.ephemeralMessage?.message || 
+                                 msg.message?.viewOnceMessage?.message || 
+                                 msg.message;
+
+            if (!actualMessage) return;
+
+            const text = actualMessage.conversation || 
+                         actualMessage.extendedTextMessage?.text || 
+                         actualMessage.imageMessage?.caption || 
+                         actualMessage.videoMessage?.caption || "";
+
+            if (text) {
+                console.log("📩 Message from", msg.key.remoteJid, ":", text);
+            }
+
+            const jid = msg.key.remoteJid;
+            const sender = msg.key.fromMe ? sock.user.id.split(':')[0] + "@s.whatsapp.net" : (msg.participant || jid);
+            const isOwner = sender === global.ownerNumber;
+            const prefix = process.env.PREFIX || ".";
+            const isGroup = jid.endsWith("@g.us");
+
+            // ===== ANTILINK (WhatsApp Only) =====
+            global.antilinkChats = global.antilinkChats || [];
+            
+            if (isGroup && global.antilinkChats.includes(jid)) {
+                // വാട്സാപ്പ് ഗ്രൂപ്പ് ലിങ്ക് ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു
+                const isWaLink = /chat\.whatsapp\.com\/[a-zA-Z0-9]/i.test(text);
+                
+                if (isWaLink && !isOwner) { // നീ (Owner) അയക്കുന്ന ലിങ്ക് ഡിലീറ്റ് ആവില്ല
+                    try {
+                        // ലിങ്ക് ഡിലീറ്റ് ചെയ്യുന്നു
+                        await sock.sendMessage(jid, { delete: msg.key });
+                        // വാണിംഗ് മെസ്സേജ് നൽകുന്നു
+                        await sock.sendMessage(jid, { 
+                            text: `🚨 *@${sender.split('@')[0]} WhatsApp links are not allowed here!*`, 
+                            mentions: [sender] 
+                        });
+                        return; // ബാക്കി കമാൻഡുകൾ വർക്ക് ആവാതിരിക്കാൻ
+                    } catch (e) {
+                        console.log("Antilink Error (Bot may not be admin):", e);
+                    }
+                }
+            }
+// ===== AUTO DL =====
+
+global.autoDlChats = global.autoDlChats || [];
+global.autoDlAllGroups = global.autoDlAllGroups || false;
+global.autoDlAllDms = global.autoDlAllDms || false;
+
+const autoDlEnabled =
+    global.autoDlChats.includes(jid) ||
+    (global.autoDlAllGroups && isGroup) ||
+    (global.autoDlAllDms && !isGroup);
+
+if (
+    autoDlEnabled &&
+    text &&
+    !text.startsWith(prefix)
+) {
+    try {
+
+        if (/instagram\.com/i.test(text)) {
+            const insta = commands.find(c => c.name === "insta");
+            if (insta) return await insta.execute(sock, msg, [text]);
+        }
+
+        if (/facebook\.com|fb\.watch/i.test(text)) {
+            const fb = commands.find(c => c.name === "fb");
+            if (fb) return await fb.execute(sock, msg, [text]);
+        }
+
+        if (/youtube\.com|youtu\.be/i.test(text)) {
+            const ytv = commands.find(c => c.name === "ytv");
+            if (ytv) return await ytv.execute(sock, msg, [text]);
+        }
+
+    } catch (e) {
+        console.error("AUTO DL ERROR:", e);
+    }
+} 
         if (!text.startsWith(prefix)) return;
 
         const args = text.slice(prefix.length).trim().split(/ +/);
