@@ -16,7 +16,6 @@ module.exports = {
             return await sock.sendMessage(jid, { text: `❌ *What song do you want to play?*` }, { quoted: msg });
         }
 
-        // വെറും Reaction മാത്രം
         await sock.sendMessage(jid, { react: { text: "🔍", key: msg.key } });
 
         try {
@@ -25,7 +24,8 @@ module.exports = {
             const match = query.match(ytRegex);
 
             if (match) {
-                url = `https://youtu.be/${match}`;
+                // 🚨 FIX: match[1] എന്ന് നിർബന്ധമാണ്
+                url = `https://youtu.be/${match[1]}`;
             } else {
                 const searchResults = await ytSearch(query);
                 const video = searchResults.videos ? searchResults.videos.find(v => v.url) : null;
@@ -37,10 +37,10 @@ module.exports = {
 
             let audioUrl = '';
             const apis = [
-                `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
-                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(url)}`
+                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`, 
+                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3?url=${encodeURIComponent(url)}`,    
+                `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,             
+                `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(url)}` 
             ];
 
             const axiosConfig = {
@@ -64,9 +64,11 @@ module.exports = {
 
             if (!audioUrl) throw new Error('All servers busy.');
 
+            // 🚨 FIX: ptt: false ചേർത്താൽ റെയിൽവേയിൽ ബോട്ട് ക്രാഷ് ആകില്ല
             await sock.sendMessage(jid, { 
                 audio: { url: audioUrl }, 
-                mimetype: 'audio/mpeg'
+                mimetype: 'audio/mpeg',
+                ptt: false 
             }, { quoted: msg });
             
             await sock.sendMessage(jid, { react: { text: "🎧", key: msg.key } });
