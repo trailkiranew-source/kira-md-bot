@@ -11,7 +11,7 @@ module.exports = {
         const jid = msg.key.remoteJid;
         let url = (args && Array.isArray(args) ? args.join(' ') : '').trim();
 
-        if (!url || (!url.includes('facebook.com') && !url.includes('fb.watch') && !url.includes('fb.gg'))) {
+        if (!url || (!url.includes('facebook.com') && !url.includes('fb.watch'))) {
             return await sock.sendMessage(jid, { text: "❌ *Please provide a valid Facebook URL!*" }, { quoted: msg });
         }
 
@@ -19,34 +19,19 @@ module.exports = {
         const statusMsg = await sock.sendMessage(jid, { text: `📥 *Downloading Facebook video...*` });
 
         try {
-            const apiUrl = `https://api-aswin-sparky.koyeb.app/api/downloader/fbdl?url=${encodeURIComponent(url)}`;
-            const res = await axios.get(apiUrl);
-            
+            // global.api ഉപയോഗിക്കുന്നു
+            const res = await axios.get(`${global.api.fb}${encodeURIComponent(url)}`);
             const apiData = res.data;
-            let videoUrl = '';
+            
+            // ലിങ്ക് കണ്ടെത്താൻ ഫ്ലെക്സിബിൾ ആയ രീതി
+            const result = apiData.data || apiData.result;
+            const videoUrl = result?.high || result?.hd || result?.url || result?.video || result?.sd;
 
-            // നീ അയച്ച JSON ഫോർമാറ്റ് അനുസരിച്ചുള്ള കൃത്യമായ ചെക്കിംഗ്
-            if (apiData.data) {
-                if (Array.isArray(apiData.data) && apiData.data.length > 0) {
-                    let first = apiData.data;
-                    videoUrl = first.high || first.hd || first.url || first.video || first.low || first.sd;
-                } else if (typeof apiData.data === 'object') {
-                    // ഇവിടെയാണ് നിന്റെ API-യിലെ 'high' ലിങ്ക് എടുക്കുന്നത്
-                    videoUrl = apiData.data.high || apiData.data.hd || apiData.data.url || apiData.data.video_hd || apiData.data.low || apiData.data.sd;
-                }
-            } else if (apiData.result) {
-                videoUrl = apiData.result.high || apiData.result.hd || apiData.result.url;
-            }
+            if (!videoUrl) throw new Error('Video link not found');
 
-            if (!videoUrl) {
-                console.log("FB API Response:", JSON.stringify(apiData, null, 2));
-                throw new Error('Video link not found');
-            }
-
-            const { data: buffer } = await axios.get(videoUrl, { responseType: 'arraybuffer' });
-
+            // ബഫർ ചെയ്യാതെ നേരിട്ട് URL വഴി അയക്കുന്നു (വേഗത കൂടും)
             await sock.sendMessage(jid, { 
-                video: buffer, 
+                video: { url: videoUrl }, 
                 mimetype: 'video/mp4', 
                 caption: '*🎌 KIRA X MD FACEBOOK DOWNLOADER 🎌*' 
             }, { quoted: msg });
