@@ -58,11 +58,12 @@ module.exports = {
                 react: { text: "📥", key: msg.key }
             });
 
-            const apis = [
-                `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
-                `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
-                `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(url)}`
-            ];
+           const apis = [
+    `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
+    `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
+    `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
+    `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(url)}`
+];
 
             let audioUrl = null;
 
@@ -78,6 +79,9 @@ module.exports = {
                     });
 
                     const data = res.data;
+
+console.log("API RESPONSE:");
+console.log(JSON.stringify(data, null, 2));
 
                     let candidate =
                         data?.data?.dl ||
