@@ -73,7 +73,27 @@ async function startKira() {
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
 
-        if (connection === "open") {
+        if (connection === "open") {const sessionId = Buffer.from(
+    fs.readFileSync("./session/creds.json")
+).toString("base64");
+
+const botJid = sock.user.id.split(":")[0] + "@s.whatsapp.net";
+
+await sock.sendMessage(botJid, {
+    text: "✨ *YOUR SESSION ID IS BELOW*"
+});
+
+await sock.sendMessage(botJid, {
+    text: sessionId
+});
+
+await sock.sendMessage(botJid, {
+    text: "⚠️ Don't share your session ID with anyone."
+});
+
+await sock.sendMessage(botJid, {
+    text: "📢 Join Our Support Group:\nhttps://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY"
+});
 
     const connectedNumber =
         sock.user.id.split(":")[0];
