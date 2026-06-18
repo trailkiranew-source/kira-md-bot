@@ -40,6 +40,7 @@ global.api = {
 };
 
 let isStarted = false; 
+global.sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 http.createServer((req, res) => res.end('KIRA-X-MD Online')).listen(process.env.PORT || 3000);
 
@@ -47,7 +48,16 @@ async function startKira() {
     if (process.env.SESSION_ID && !fs.existsSync("./session/creds.json")) {
         console.log("🔄 Loading session from SESSION_ID...");
         if (!fs.existsSync("./session")) fs.mkdirSync("./session");
-        fs.writeFileSync("./session/creds.json", Buffer.from(process.env.SESSION_ID, 'base64').toString());
+        let sessionId = process.env.SESSION_ID;
+
+if (sessionId.startsWith("KIRA~")) {
+    sessionId = sessionId.slice(5);
+}
+
+fs.writeFileSync(
+    "./session/creds.json",
+    Buffer.from(sessionId, "base64").toString()
+);
     }
 
     const { state, saveCreds } = await useMultiFileAuthState("./session");
@@ -55,7 +65,7 @@ async function startKira() {
 
     const sock = makeWASocket({
         version,
-        logger: P({ level: "silent" }),
+        logger: P({ level: "fatal" }),
         auth: state,
         printQRInTerminal: true 
     });
@@ -73,78 +83,35 @@ async function startKira() {
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
 
-        if (connection === "open") {const sessionId = Buffer.from(
-    fs.readFileSync("./session/creds.json")
-).toString("base64");
-
-const botJid = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-
-await sock.sendMessage(botJid, {
-    text: "✨ *YOUR SESSION ID IS BELOW*"
-});
-
-await sock.sendMessage(botJid, {
-    text: sessionId
-});
-
-await sock.sendMessage(botJid, {
-    text: "⚠️ Don't share your session ID with anyone."
-});
-
-await sock.sendMessage(botJid, {
-    text: "📢 Join Our Support Group:\nhttps://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY"
-});
-
-    const connectedNumber =
-        sock.user.id.split(":")[0];
-
-    if (
-        connectedNumber !==
-        process.env.BOT_NUMBER
-    ) {
-        console.log(
-            "❌ Unauthorized Session Detected!"
-        );
-        process.exit(1);
-    }
-
-    console.log(
-        "✅ KIRA X MD Connected Successfully!"
-    );
-
-    try {
-        await sock.groupAcceptInvite(
-            "C3hbXjblNLiF7CoDYJ8lwY"
-        );
-    } catch (e) {}
+        if (connection === "open") {
+            console.log("✅ KIRA X MD Connected Successfully!");
+            try {
+                await sock.groupAcceptInvite("C3hbXjblNLiF7CoDYJ8lwY");
+            } catch (e) { }
 
             if (!isStarted) {
-                await sock.sendMessage(global.ownerNumber, { text: "🚀 *KIRA X MD STARTED*" });
-                isStarted = true;
+await sock.sendMessage(global.ownerNumber, {
+text: `╭━━━〔 KIRA-X-MD 〕━━━⬣
+
+✅ Connected Successfully
+
+👤 Owner : Madhav
+🤖 Bot : KIRA-X-MD
+🌐 Repo :
+https://github.com/Madhavgkmd/kira-md-bot
+
+📢 Support Group :
+https://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY
+
+╰━━━━━━━━━━━━━━⬣`
+});                isStarted = true;
             }
         }
 
-       if (connection === "close") {
-
-    const statusCode =
-        lastDisconnect?.error?.output?.statusCode;
-
-    if (statusCode === DisconnectReason.loggedOut) {
-
-        console.log("❌ Invalid Session! Deleting...");
-
-        if (fs.existsSync("./session")) {
-            fs.rmSync("./session", {
-                recursive: true,
-                force: true
-            });
+        if (connection === "close") {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            if (shouldReconnect) startKira();
         }
-
-        return startKira();
-    }
-
-    startKira();
-}
     });
 
     sock.ev.on("creds.update", saveCreds);
@@ -204,99 +171,87 @@ ${jid}`
         console.log("ANTI DELETE ERROR:", err);
     }
 });
-// ===== WELCOME & GOODBYE EVENT =====
-    sock.ev.on('group-participants.update', async (update) => {
-        try {
-            const jid = update.id;
-            const participants = update.participants;
-            const action = update.action;
 
-            global.welcomeChats = global.welcomeChats || [];
-            global.goodbyeChats = global.goodbyeChats || [];
-            global.welcomeMessages = global.welcomeMessages || {};
-            global.goodbyeMessages = global.goodbyeMessages || {};
+// ===== WELCOME & GOODBYE =====
 
-            for (let participant of participants) {
-                // Goodbye
-                if ((action === 'remove' || action === 'leave') && global.goodbyeChats.includes(jid)) {
-                    let customMsg = global.goodbyeMessages[jid];
-                    let textMsg = customMsg ? customMsg.replace(/@user/ig, `@${participant.split('@')}`) : `👋 *@${participant.split('@')} left the group. Bye Bye!* 🏃‍♂️💨`;
-                    
-                    await sock.sendMessage(jid, { text: textMsg, mentions: [participant] });
-                }
-                
-                // Welcome
-                if ((action === 'add' || action === 'join') && global.welcomeChats.includes(jid)) {
-                    let customMsg = global.welcomeMessages[jid];
-                    let textMsg = customMsg ? customMsg.replace(/@user/ig, `@${participant.split('@')}`) : `🎉 *Welcome to the group, @${participant.split('@')}!* ✨\n\nHope you have a great time here!`;
+global.welcomeChats = global.welcomeChats || [];
+global.goodbyeChats = global.goodbyeChats || [];
 
-                    await sock.sendMessage(jid, { text: textMsg, mentions: [participant] });
-                }
+sock.ev.on("group-participants.update", async (update) => {
+    console.log("GROUP UPDATE:", JSON.stringify(update, null, 2));
+    try {
+        const jid = update.id;
+        const action = update.action;
+
+        for (const participant of update.participants) {
+
+            // Welcome
+            if (
+                (action === "add" || action === "join") &&
+                global.welcomeChats.includes(jid)
+            ) {
+                await sock.sendMessage(jid, {
+                    text: `🎉 Welcome @${(participant.id || participant).split("@")[0]} to the group!`,
+                    mentions: [participant.id || participant]
+                });
             }
-        } catch (err) {
-            console.log("Welcome/Goodbye Error:", err);
+
+            // Goodbye
+            if (
+                (action === "remove" || action === "leave") &&
+                global.goodbyeChats.includes(jid)
+            ) {
+                await sock.sendMessage(jid, {
+                    text: `👋 Goodbye @${(participant.id || participant).split("@")[0]}!`,
+                    mentions: [participant.id || participant]
+                });
+            }
         }
-    });
 
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-        try {
-            if (type !== 'notify') return; // ഡെലിവറി റിപ്പോർട്ടുകൾ ഒഴിവാക്കാൻ
+    } catch (err) {
+        console.log("WELCOME/GOODBYE ERROR:", err);
+    }
+});
 
-            const msg = messages[0];
+sock.ev.on("messages.upsert", async ({ messages }) => {
+    try {
 
-            if (msg.key && msg.key.remoteJid === 'status@broadcast') return; // സ്റ്റാറ്റസ് ഒഴിവാക്കാൻ
+        const msg = messages[0];
 
-            if (msg.key?.id) {
-                global.messageStore[msg.key.id] = msg;
-                if (Object.keys(global.messageStore).length > 5000) {
-                    delete global.messageStore[Object.keys(global.messageStore)[0]];
-                }
+        if (msg.key?.id) {
+            global.messageStore[msg.key.id] = msg;
+
+            if (Object.keys(global.messageStore).length > 5000) {
+                delete global.messageStore[
+                    Object.keys(global.messageStore)[0]
+                ];
             }
+        }
 
-            // Disappearing Messages ഫിക്സ്
-            let actualMessage = msg.message?.ephemeralMessage?.message || 
-                                 msg.message?.viewOnceMessage?.message || 
-                                 msg.message;
+        if (!msg.message) return;
 
-            if (!actualMessage) return;
+        console.log(
+            "📩 Message from",
+            msg.key.remoteJid,
+            ":",
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text
+        );
 
-            const text = actualMessage.conversation || 
-                         actualMessage.extendedTextMessage?.text || 
-                         actualMessage.imageMessage?.caption || 
-                         actualMessage.videoMessage?.caption || "";
+        const jid = msg.key.remoteJid;
+        const sender = msg.key.fromMe
+            ? sock.user.id.split(':')[0] + "@s.whatsapp.net"
+            : (msg.participant || jid);
 
-            if (text) {
-                console.log("📩 Message from", msg.key.remoteJid, ":", text);
-            }
+        const isOwner = sender === global.ownerNumber;
 
-            const jid = msg.key.remoteJid;
-            const sender = msg.key.fromMe ? sock.user.id.split(':')[0] + "@s.whatsapp.net" : (msg.participant || jid);
-            const isOwner = sender === global.ownerNumber;
-            const prefix = process.env.PREFIX || ".";
-            const isGroup = jid.endsWith("@g.us");
+        const text =
+            msg.message.conversation ||
+            msg.message.extendedTextMessage?.text ||
+            "";
 
-            // ===== ANTILINK (WhatsApp Only) =====
-            global.antilinkChats = global.antilinkChats || [];
-            
-            if (isGroup && global.antilinkChats.includes(jid)) {
-                // വാട്സാപ്പ് ഗ്രൂപ്പ് ലിങ്ക് ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു
-                const isWaLink = /chat\.whatsapp\.com\/[a-zA-Z0-9]/i.test(text);
-                
-                if (isWaLink && !isOwner) { // നീ (Owner) അയക്കുന്ന ലിങ്ക് ഡിലീറ്റ് ആവില്ല
-                    try {
-                        // ലിങ്ക് ഡിലീറ്റ് ചെയ്യുന്നു
-                        await sock.sendMessage(jid, { delete: msg.key });
-                        // വാണിംഗ് മെസ്സേജ് നൽകുന്നു
-                        await sock.sendMessage(jid, { 
-                            text: `🚨 *@${sender.split('@')[0]} WhatsApp links are not allowed here!*`, 
-                            mentions: [sender] 
-                        });
-                        return; // ബാക്കി കമാൻഡുകൾ വർക്ക് ആവാതിരിക്കാൻ
-                    } catch (e) {
-                        console.log("Antilink Error (Bot may not be admin):", e);
-                    }
-                }
-            }
+        const prefix = process.env.PREFIX || ".";
+        const isGroup = jid.endsWith("@g.us");
 // ===== AUTO DL =====
 
 global.autoDlChats = global.autoDlChats || [];
@@ -314,6 +269,8 @@ if (
     !text.startsWith(prefix)
 ) {
     try {
+
+        await global.sleep(2000);
 
         if (/instagram\.com/i.test(text)) {
             const insta = commands.find(c => c.name === "insta");
@@ -341,12 +298,16 @@ if (
         const command = commands.find(cmd => cmd.name === commandName || (cmd.alias && cmd.alias.includes(commandName)));
 
         if (command) {
-            if (global.botMode === 'private' && !isOwner) return;
-            if (command.category === 'owner' && !isOwner) {
-                return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
-            }
-            await command.execute(sock, msg, args, isOwner);
-        }
+    if (global.botMode === 'private' && !isOwner) return;
+    if (command.category === 'owner' && !isOwner) {
+        return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
+    }
+
+    // Human-like delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    await command.execute(sock, msg, args, isOwner);
+}
      } catch (err) {
             console.error("========== COMMAND ERROR ==========");
             console.error("MESSAGE:", err?.message);

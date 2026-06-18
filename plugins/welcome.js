@@ -17,7 +17,7 @@ module.exports = {
         global.welcomeChats = global.welcomeChats || [];
         global.welcomeMessages = global.welcomeMessages || {}; // Custom message store
         
-        const action = (args || "").toLowerCase();
+        const action = (args[0] || "").toLowerCase();
 
         if (action === "on") {
             if (!global.welcomeChats.includes(jid)) global.welcomeChats.push(jid);

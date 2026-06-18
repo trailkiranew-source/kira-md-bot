@@ -17,7 +17,7 @@ module.exports = {
         global.goodbyeChats = global.goodbyeChats || [];
         global.goodbyeMessages = global.goodbyeMessages || {}; // Custom message store
         
-        const action = (args || "").toLowerCase();
+        const action = (args[0] || "").toLowerCase();
 
         if (action === "on") {
             if (!global.goodbyeChats.includes(jid)) global.goodbyeChats.push(jid);
