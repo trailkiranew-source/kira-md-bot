@@ -70,7 +70,10 @@ fs.writeFileSync(
         printQRInTerminal: true 
     });
 
-    if (!sock.authState.creds.registered) {
+    if (
+    !sock.authState.creds.registered &&
+    !process.env.SESSION_ID
+) {
         const phoneNumber = process.env.BOT_NUMBER;
         if (phoneNumber) {
             setTimeout(async () => {
