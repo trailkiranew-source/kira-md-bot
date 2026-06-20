@@ -420,11 +420,8 @@ if (!global.botOnline) return;
         jid
     );
 }
-        const sender = msg.key.fromMe
-            ? sock.user.id.split(':')[0] + "@s.whatsapp.net"
-            : (msg.participant || jid);
-
-        const isOwner = sender === global.ownerNumber;
+        const isSudo = global.sudoUsers?.includes(sender);
+        const isOwnerOrSudo = isOwner || isSudo;
         const isSudo = global.sudoUsers?.includes(sender);
         const isOwnerOrSudo = isOwner || isSudo;
 
