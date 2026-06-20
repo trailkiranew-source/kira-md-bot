@@ -346,6 +346,8 @@ sock.ev.on("messages.upsert", async ({ messages }) => {
 }
 
         const jid = msg.key.remoteJid;
+
+        const isGroup = jid.endsWith("@g.us");
 const sender = msg.key.fromMe
     ? sock.user.id.split(':')[0] + "@s.whatsapp.net"
     : (msg.participant || jid);
@@ -422,12 +424,9 @@ if (!global.botOnline) return;
 }
         const isSudo = global.sudoUsers?.includes(sender);
         const isOwnerOrSudo = isOwner || isSudo;
-        const isSudo = global.sudoUsers?.includes(sender);
-        const isOwnerOrSudo = isOwner || isSudo;
+        
 
-        const text =
         global.settingsReplies = global.settingsReplies || {};
-
 if (
     msg.message?.extendedTextMessage?.contextInfo?.stanzaId
 ) {
