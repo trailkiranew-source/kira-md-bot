@@ -15,13 +15,41 @@ loadPlugins();
 global.commands = commands;
 
 // Global settings
-global.botMode = 'public'; 
+global.antiWordChats = [];
+global.badWords = [];
+
+global.antiBotChats = [];
+global.antiPromoteChats = [];
+global.antiDemoteChats = [];
+global.antiFakeChats = [];
+global.antiSpamChats = [];
+global.spamData = {};
+global.warnData = global.warnData || {};
+global.warnLimit = global.warnLimit || 3;
+global.botMode = 'public';
 global.ownerNumber = process.env.BOT_NUMBER + "@s.whatsapp.net";
+
 global.autoDlChats = [];
 global.autoDlAllGroups = false;
 global.autoDlAllDms = false;
+
 global.antiDeleteChats = [];
 global.messageStore = {};
+
+global.callReject = false;
+global.botOnline = true;
+
+global.welcomeChats = [];
+global.goodbyeChats = [];
+global.antilinkChats = [];
+
+global.settingsMessages = [];
+
+global.sudoUsers = process.env.SUDO_NUMBERS
+    ? process.env.SUDO_NUMBERS
+        .split(",")
+        .map(x => x.trim() + "@s.whatsapp.net")
+    : [];
 
 // Global API Configuration
 global.api = {
@@ -62,6 +90,30 @@ fs.writeFileSync(
 
     const { state, saveCreds } = await useMultiFileAuthState("./session");
     const { version } = await fetchLatestBaileysVersion();
+    sock.ev.on("call", async (calls) => {
+
+    if (!global.callReject) return;
+
+    for (const call of calls) {
+
+        try {
+            await sock.rejectCall(
+                call.id,
+                call.from
+            );
+
+            await sock.sendMessage(
+                call.from,
+                {
+                    text: "📵 Calls are disabled. Send a message instead."
+                }
+            );
+
+        } catch (e) {
+            console.log(e);
+        }
+    }
+});
 
     const sock = makeWASocket({
         version,
@@ -86,6 +138,25 @@ fs.writeFileSync(
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
 
+        sock.ev.on("call", async (calls) => {
+
+    if (!global.callReject) return;
+
+    for (const call of calls) {
+
+        if (call.status === "offer") {
+
+            await sock.rejectCall(call.id, call.from);
+
+            await sock.sendMessage(
+                call.from,
+                {
+                    text: "📵 Calls are not allowed. Please send a message."
+                }
+            );
+        }
+    }
+});
         if (connection === "open") {
             console.log("✅ KIRA X MD Connected Successfully!");
             try {
@@ -182,6 +253,7 @@ global.goodbyeChats = global.goodbyeChats || [];
 
 sock.ev.on("group-participants.update", async (update) => {
     console.log("GROUP UPDATE:", JSON.stringify(update, null, 2));
+
     try {
         const jid = update.id;
         const action = update.action;
@@ -209,17 +281,118 @@ sock.ev.on("group-participants.update", async (update) => {
                     mentions: [participant.id || participant]
                 });
             }
+
+            // 👇 ANTIFAKE
+            if (
+                (action === "add" || action === "join") &&
+                global.antiFakeChats?.includes(jid)
+            ) {
+                const user = participant.id || participant;
+
+                if (!user.startsWith("91")) {
+                    await sock.groupParticipantsUpdate(
+                        jid,
+                        [user],
+                        "remove"
+                    );
+                }
+            }
+
+            // 👇 ANTIBOT
+            if (
+                (action === "add" || action === "join") &&
+                global.antiBotChats?.includes(jid)
+            ) {
+                const user = participant.id || participant;
+
+                if (user.includes(":")) {
+                    await sock.groupParticipantsUpdate(
+                        jid,
+                        [user],
+                        "remove"
+                    );
+                }
+            }
         }
 
     } catch (err) {
         console.log("WELCOME/GOODBYE ERROR:", err);
     }
 });
+    
 
 sock.ev.on("messages.upsert", async ({ messages }) => {
     try {
 
         const msg = messages[0];
+
+        if (
+    global.autoReact &&
+    !msg.key.fromMe
+) {
+    await sock.sendMessage(
+        msg.key.remoteJid,
+        {
+            react: {
+                text: "❤️",
+                key: msg.key
+            }
+        }
+    );
+}
+
+        if (global.autoRead) {
+    await sock.readMessages([msg.key]);
+}
+
+        const jid = msg.key.remoteJid;
+const sender = msg.key.fromMe
+    ? sock.user.id.split(':')[0] + "@s.whatsapp.net"
+    : (msg.participant || jid);
+
+const isOwner = sender === global.ownerNumber;
+
+// ANTI SPAM HERE 👇
+
+// anti spam code
+
+const text =
+    msg.message.conversation ||
+    msg.message.extendedTextMessage?.text ||
+    "";
+    if (
+    isGroup &&
+    global.antiWordChats.includes(jid)
+) {
+    const lower = text.toLowerCase();
+
+    const found = global.badWords.find(
+        w => lower.includes(w.toLowerCase())
+    );
+
+    if (found && !isOwner) {
+
+        await sock.sendMessage(jid,{
+            text:
+`🚫 Bad Word Detected
+
+Word: ${found}
+
+@${sender.split("@")[0]}`,
+            mentions:[sender]
+        });
+
+        try {
+            await sock.groupParticipantsUpdate(
+                jid,
+                [sender],
+                "remove"
+            );
+        } catch {}
+    }
+}
+
+if (!global.botOnline) return;
 
         if (msg.key?.id) {
             global.messageStore[msg.key.id] = msg;
@@ -242,17 +415,173 @@ sock.ev.on("messages.upsert", async ({ messages }) => {
         );
 
         const jid = msg.key.remoteJid;
+        if (global.botOnline) {
+    await sock.sendPresenceUpdate(
+        "available",
+        jid
+    );
+}
         const sender = msg.key.fromMe
             ? sock.user.id.split(':')[0] + "@s.whatsapp.net"
             : (msg.participant || jid);
 
         const isOwner = sender === global.ownerNumber;
+        const isSudo = global.sudoUsers?.includes(sender);
+        const isOwnerOrSudo = isOwner || isSudo;
 
         const text =
+        global.settingsReplies = global.settingsReplies || {};
+
+if (
+    msg.message?.extendedTextMessage?.contextInfo?.stanzaId
+) {
+    const replyId =
+        msg.message.extendedTextMessage.contextInfo.stanzaId;
+
+    if (
+        global.settingsReplies[replyId] &&
+        isOwner
+    ) {
+        const parts = text.toLowerCase().split(" ");
+
+        const num = parts[0];
+        const state = parts[1];
+
+        if (!["on", "off"].includes(state)) return;
+
+        const value = state === "on";
+
+        switch (num) {
+
+            case "1":
+                global.botMode =
+                    value ? "public" : "private";
+                break;
+
+            case "2":
+                global.autoDlAllGroups = value;
+                break;
+
+            case "3":
+                global.autoDlAllDms = value;
+                break;
+
+            case "4":
+                if (value) {
+                    if (!global.antiDeleteChats.includes(jid))
+                        global.antiDeleteChats.push(jid);
+                } else {
+                    global.antiDeleteChats =
+                        global.antiDeleteChats.filter(
+                            x => x !== jid
+                        );
+                }
+                break;
+
+            case "5":
+                if (value) {
+                    if (!global.welcomeChats.includes(jid))
+                        global.welcomeChats.push(jid);
+                } else {
+                    global.welcomeChats =
+                        global.welcomeChats.filter(
+                            x => x !== jid
+                        );
+                }
+                break;
+
+            case "6":
+                if (value) {
+                    if (!global.goodbyeChats.includes(jid))
+                        global.goodbyeChats.push(jid);
+                } else {
+                    global.goodbyeChats =
+                        global.goodbyeChats.filter(
+                            x => x !== jid
+                        );
+                }
+                break;
+
+            case "7":
+                if (value) {
+                    if (!global.antilinkChats.includes(jid))
+                        global.antilinkChats.push(jid);
+                } else {
+                    global.antilinkChats =
+                        global.antilinkChats.filter(
+                            x => x !== jid
+                        );
+                }
+                break;
+
+            case "8":
+                global.callReject = value;
+                break;
+
+            case "9":
+                global.botOnline = value;
+                break;
+
+            default:
+                return;
+
+             
+        }
+
+
+        return await sock.sendMessage(
+            jid,
+            {
+                text: `✅ Setting ${num} updated to *${state.toUpperCase()}*`
+            },
+            { quoted: msg }
+        );
+    }
+}
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             "";
 
+            const quotedId =
+msg.message?.extendedTextMessage
+?.contextInfo?.stanzaId;
+
+if (
+    quotedId &&
+    global.settingsMessages.includes(quotedId)
+) {
+
+    const [option, value] =
+    text.trim().split(" ");
+
+    const enabled =
+    value?.toLowerCase() === "on";
+
+    switch (option) {
+
+        case "8":
+            global.callReject = enabled;
+            break;
+
+        case "9":
+            global.botOnline = enabled;
+            break;
+    }
+
+    await sock.sendMessage(
+        jid,
+        {
+            text:
+`✅ Setting Updated
+
+Option: ${option}
+State: ${enabled ? "ON" : "OFF"}`
+        },
+        { quoted: msg }
+    );
+
+    return;
+}
         const prefix = process.env.PREFIX || ".";
         const isGroup = jid.endsWith("@g.us");
 // ===== AUTO DL =====
@@ -301,10 +630,19 @@ if (
         const command = commands.find(cmd => cmd.name === commandName || (cmd.alias && cmd.alias.includes(commandName)));
 
         if (command) {
-    if (global.botMode === 'private' && !isOwner) return;
-    if (command.category === 'owner' && !isOwner) {
-        return await sock.sendMessage(jid, { text: "❌ *Owner only!*" }, { quoted: msg });
-    }
+    if (global.botMode === 'private' && !isOwnerOrSudo)
+    return;
+
+if (
+    command.category === 'owner' &&
+    !isOwnerOrSudo
+) {
+    return await sock.sendMessage(
+        jid,
+        { text: "❌ *Owner only!*" },
+        { quoted: msg }
+    );
+}
 
     // Human-like delay
     await new Promise(resolve => setTimeout(resolve, 1500));

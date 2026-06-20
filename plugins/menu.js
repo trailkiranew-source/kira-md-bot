@@ -10,12 +10,13 @@ module.exports = {
         const prefix = process.env.PREFIX || '.';
         const commands = global.commands || [];
 
-        // ഇവിടെയാണ് ആ വേരിയബിൾ ഡിഫൈൻ ചെയ്യുന്നത്:
         const userName = msg.pushName || 'User';
         const botName = process.env.BOT_NAME || 'KIRA X MD';
-        const ownerName = process.env.OWNER_NAME || 'Madhav'; // ഇത് ആഡ് ചെയ്തു
+        const ownerName = process.env.OWNER_NAME || 'Madhav'; 
         const mode = process.env.MODE === 'private' ? '👑 Private' : '🌍 Public';
-        const uptime = global.startTime ? formatUptime(Date.now() - global.startTime) : 'Just started';
+        
+        // 🔄 മാറ്റം വരുത്തിയത് ഇവിടെയാണ്: "process.uptime()" ഉപയോഗിച്ച് കൃത്യമായ സമയം എടുക്കുന്നു
+        const uptime = formatUptime(process.uptime() * 1000);
 
         const categories = {};
         for (const cmd of commands) {
@@ -25,7 +26,6 @@ module.exports = {
             categories[cat].push(cmd.name);
         }
 
-        // മെനു ഹെഡർ (ഇനി എറർ വരില്ല!)
         let menuText = `╭───『 *${botName.toUpperCase()}* 』───⊷\n`;
         menuText += `│ 👤 *User:* ${userName}\n`;
         menuText += `│ 👑 *Owner:* ${ownerName}\n`; 
