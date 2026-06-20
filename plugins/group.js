@@ -62,7 +62,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "glock",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg) {
 
@@ -83,7 +83,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "gunlock",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg) {
 
@@ -104,7 +104,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "gname",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg, args) {
 
@@ -133,7 +133,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "gdesc",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg, args) {
 
@@ -162,7 +162,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "leave",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg) {
 
@@ -180,7 +180,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "quoted",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg) {
 
@@ -205,7 +205,7 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "gstatus",
-    category: "owner",
+    category: "group",
 
     async execute(sock, msg) {
 
