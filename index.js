@@ -87,7 +87,8 @@ fs.writeFileSync(
     Buffer.from(sessionId, "base64").toString()
 );
     }
-
+const { state, saveCreds } = await useMultiFileAuthState("./session");
+const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
         version,
@@ -109,10 +110,7 @@ fs.writeFileSync(
         }
     }
 
-    sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
-
-        sock.ev.on("call", async (calls) => {
+    sock.ev.on("call", async (calls) => {
 
     if (!global.callReject) return;
 
@@ -131,15 +129,19 @@ fs.writeFileSync(
         }
     }
 });
-        if (connection === "open") {
-            console.log("✅ KIRA X MD Connected Successfully!");
-            try {
-                await sock.groupAcceptInvite("C3hbXjblNLiF7CoDYJ8lwY");
-            } catch (e) { }
 
-            if (!isStarted) {
-await sock.sendMessage(global.ownerNumber, {
-text: `╭━━━〔 KIRA-X-MD 〕━━━⬣
+sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
+
+    if (connection === "open") {
+        console.log("✅ KIRA X MD Connected Successfully!");
+        try {
+            await sock.groupAcceptInvite("C3hbXjblNLiF7CoDYJ8lwY");
+        } catch (e) { }
+
+        if (!isStarted) {
+            await sock.sendMessage(global.ownerNumber, {
+                text: `╭━━━〔 KIRA-X-MD 〕━━━⬣
 
 ✅ Connected Successfully
 
@@ -152,15 +154,16 @@ https://github.com/Madhavgkmd/kira-md-bot
 https://chat.whatsapp.com/C3hbXjblNLiF7CoDYJ8lwY
 
 ╰━━━━━━━━━━━━━━⬣`
-});                isStarted = true;
-            }
+            });
+            isStarted = true;
         }
+    }
 
-        if (connection === "close") {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startKira();
-        }
-    });
+    if (connection === "close") {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) startKira();
+    }
+});
 
     sock.ev.on("creds.update", saveCreds);
     sock.ev.on("messages.update", async (updates) => {
