@@ -50,7 +50,7 @@ module.exports = {
         
         if (!quoted) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "⚠️ Please reply to an image or video!" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: "⚠️ *Please reply to an image or video!*" }, { quoted: msg });
         }
 
         let mediaMsg = quoted;
@@ -62,7 +62,7 @@ module.exports = {
         
         if (!isImage && !isVideo) {
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return await sock.sendMessage(jid, { text: "⚠️ Only images and videos are supported!" }, { quoted: msg });
+            return await sock.sendMessage(jid, { text: "⚠️ *Only images and videos are supported!*" }, { quoted: msg });
         }
 
         // 🧠 Smart Watermark Argument Parser
@@ -73,8 +73,8 @@ module.exports = {
             const fullText = args.join(" ");
             if (fullText.includes("|")) {
                 const textArgs = fullText.split("|");
-                packName = textArgs[0].trim();
-                authorName = textArgs[1] ? textArgs[1].trim() : "Kira";
+                packName = textArgs.trim();
+                authorName = textArgs ? textArgs.trim() : "Kira";
             } else {
                 packName = fullText.trim();
                 authorName = "Kira";
@@ -119,7 +119,8 @@ module.exports = {
                     ffmpeg(inputPath)
                         .outputOptions([
                             "-vcodec", "libwebp",
-                            "-vf", "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease,fps=15, pad=320:320:-1:-1:color=white@0.0, split [a][b]; [a] palettegen=reserve_transparent=on:transparency_color=ffffff [p]; [b][p] paletteuse",
+                            // 🛠️ FIX: ഇവിടെ 320 എന്നത് മാറ്റി 512 ആക്കി, അപ്പോൾ ഫുൾ സൈസിൽ വരും!
+                            "-vf", "scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease,fps=15, pad=512:512:-1:-1:color=white@0.0, split [a][b]; [a] palettegen=reserve_transparent=on:transparency_color=ffffff [p]; [b][p] paletteuse",
                             "-loop", "0",
                             "-preset", "default",
                             "-an",
@@ -140,7 +141,10 @@ module.exports = {
 
             // Read and send
             const stickerBuffer = fs.readFileSync(outputPath);
-            await sock.sendMessage(jid, { sticker: stickerBuffer });
+            
+            // 🛠️ FIX: ഇവിടെ { quoted: msg } കൊടുത്തു, അപ്പോൾ റിപ്ലൈ ആയിട്ട് വരും!
+            await sock.sendMessage(jid, { sticker: stickerBuffer }, { quoted: msg });
+            
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
 
             // Clean up files
@@ -151,7 +155,6 @@ module.exports = {
             console.error("Sticker plugin error:", err);
             await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
             
-            // Fixed cleanup logic to prevent crashing
             if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
             if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
         }

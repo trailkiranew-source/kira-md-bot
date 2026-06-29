@@ -3,7 +3,7 @@ const fs = require("fs");
 
 module.exports = {
     name: "session",
-    alias: ["getsession", "pair"],
+    alias: ["getsession"],
     category: "owner",
     execute: async (sock, msg, args) => {
         const jid = msg.key.remoteJid;

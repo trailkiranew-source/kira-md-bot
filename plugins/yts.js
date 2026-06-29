@@ -1,39 +1,120 @@
-const { searchYoutube } = require('../lib/yt');
+const yts = require("yt-search");
 
 module.exports = {
-    name: 'yts',
-    alias: ['ysearch'],
-    category: 'search',
-    description: 'Search YouTube and show details',
-    usage: '.yts <query>',
+    name: "yts",
+    alias: ["ysearch"],
+    category: "search",
+    description: "Search YouTube videos",
+    usage: ".yts <query>",
 
     async execute(sock, msg, args) {
+
         const jid = msg.key.remoteJid;
-        const query = (args && Array.isArray(args) ? args.join(' ') : '').trim();
+        const query = args.join(" ").trim();
+
         if (!query) {
-            await sock.sendMessage(jid, { text: `🔎 *YTS*\n\n❌ *Missing query*` }, { quoted: msg });
-            return;
+            return await sock.sendMessage(
+                jid,
+                {
+                    text:
+`🔎 *YouTube Search*
+
+Example:
+.yts Naruto Opening`
+                },
+                { quoted: msg }
+            );
         }
 
-        await sock.sendMessage(jid, { react: { text: "🔎", key: msg.key } });
-        const statusMsg = await sock.sendMessage(jid, { text: `🔍 Searching...` });
-
         try {
-            const results = await searchYoutube(query, 10);
-            if (!results.length) throw new Error('No results');
 
-            let txt = `🎬 *YouTube Search Results for "${query}"*\n\n`;
-            results.forEach((v, i) => {
-                txt += `${i+1}. *${v.title}*\n   ⏱️ ${v.duration} | 👁️ ${v.views.toLocaleString()} views\n   📺 ${v.channel.name}\n\n`;
+            await sock.sendMessage(jid, {
+                react: {
+                    text: "🔎",
+                    key: msg.key
+                }
             });
-            txt += `_Reply with a number (1-10) to see more details._`;
-            
-            await sock.sendMessage(jid, { text: txt, edit: statusMsg.key });
-            await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
+
+            const result = await yts(query);
+
+            const videos =
+                result.videos.slice(0, 10);
+
+            if (!videos.length) {
+                return await sock.sendMessage(
+                    jid,
+                    {
+                        text:
+`❌ No results found for:
+
+${query}`
+                    },
+                    { quoted: msg }
+                );
+            }
+
+            let text =
+`╭━━━〔 YOUTUBE SEARCH 〕━━━⬣
+
+🔎 Query: ${query}
+📦 Results: ${videos.length}
+
+`;
+
+            for (let i = 0; i < videos.length; i++) {
+
+                const v = videos[i];
+
+                text +=
+`${i + 1}. *${v.title}*
+⏱ ${v.timestamp}
+👤 ${v.author.name}
+👁 ${v.views.toLocaleString()} views
+🔗 ${v.url}
+
+`;
+            }
+
+            text +=
+"╰━━━━━━━━━━━━━━⬣";
+
+            await sock.sendMessage(
+                jid,
+                {
+                    text
+                },
+                { quoted: msg }
+            );
+
+            await sock.sendMessage(jid, {
+                react: {
+                    text: "✅",
+                    key: msg.key
+                }
+            });
+
         } catch (err) {
-            console.error(err);
-            await sock.sendMessage(jid, { text: `❌ Search failed.`, edit: statusMsg.key });
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+
+            console.log(
+                "YTS ERROR:",
+                err
+            );
+
+            await sock.sendMessage(
+                jid,
+                {
+                    text:
+"❌ Failed to search YouTube."
+                },
+                { quoted: msg }
+            );
+
+            await sock.sendMessage(jid, {
+                react: {
+                    text: "❌",
+                    key: msg.key
+                }
+            });
         }
     }
 };

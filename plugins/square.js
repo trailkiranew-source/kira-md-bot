@@ -4,6 +4,9 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
+const ffmpegPath = path.join(__dirname, '../ffmpeg.exe');
+if (fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath);
+
 module.exports = {
     name: "square",
     category: "media",
@@ -12,10 +15,13 @@ module.exports = {
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
+        
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        
         if (!quoted || (!quoted.imageMessage && !quoted.videoMessage)) {
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: "❌ *Please reply to an image or video!*" 
+            }, { quoted: msg });
         }
 
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
@@ -25,8 +31,10 @@ module.exports = {
             const buffer = await downloadMediaMessage({ message: quoted }, "buffer", {}, { logger: console });
             const tempDir = path.join(__dirname, "../temp");
             if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+            
             const isVideo = !!quoted.videoMessage;
             const ext = isVideo ? 'mp4' : 'jpg';
+            
             inputPath = path.join(tempDir, `square_in_${Date.now()}.${ext}`);
             outputPath = path.join(tempDir, `square_out_${Date.now()}.${ext}`);
             fs.writeFileSync(inputPath, buffer);
@@ -34,26 +42,44 @@ module.exports = {
             if (isVideo) {
                 await new Promise((resolve, reject) => {
                     ffmpeg(inputPath)
-                        .videoFilter("crop=min(iw,ih):min(iw,ih)")
+                        // 🛠️ FIX: ഇവിടെയാണ് നമ്മൾ മാറ്റം വരുത്തിയത് (കോമ പ്രശ്നം ഒഴിവാക്കാൻ Object ആക്കി കൊടുത്തു)
+                        .videoFilters([{
+                            filter: 'crop',
+                            options: ['min(iw,ih)', 'min(iw,ih)']
+                        }])
                         .outputOptions(["-c:v libx264", "-preset fast", "-crf 23", "-c:a copy"])
                         .output(outputPath)
                         .on("end", resolve)
                         .on("error", reject)
                         .run();
                 });
+                
                 const videoBuffer = fs.readFileSync(outputPath);
-                await sock.sendMessage(jid, { video: videoBuffer, mimetype: 'video/mp4', caption: "KIRA X MD" });
+                await sock.sendMessage(jid, { 
+                    video: videoBuffer, 
+                    mimetype: 'video/mp4', 
+                    caption: "🎬 *Squared by KIRA X MD*" 
+                }, { quoted: msg });
+                
             } else {
                 await sharp(inputPath)
                     .resize(512, 512, { fit: "cover" })
                     .toFile(outputPath);
+                    
                 const imgBuffer = fs.readFileSync(outputPath);
-                await sock.sendMessage(jid, { image: imgBuffer, caption: "KIRA X MD" });
+                await sock.sendMessage(jid, { 
+                    image: imgBuffer, 
+                    caption: "🖼️ *Squared by KIRA X MD*" 
+                }, { quoted: msg });
             }
+            
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
+            
         } catch (err) {
-            console.error(err);
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            console.error("Square Error:", err);
+            await sock.sendMessage(jid, { 
+                text: "❌ *Failed to square the media!*" 
+            }, { quoted: msg });
         } finally {
             try {
                 if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);

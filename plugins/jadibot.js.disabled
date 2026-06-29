@@ -1,0 +1,48 @@
+const { startSubBot } = require("../lib/jadibot");
+
+module.exports = {
+    name: "jadibot",
+    alias: ["pair"],
+    category: "owner",
+
+    async execute(sock, msg, args) {
+        const jid = msg.key.remoteJid;
+        
+        // നമ്പറിലെ സ്പേസും പ്ലസ് ചിഹ്നങ്ങളും ഒഴിവാക്കുന്നു
+        const number = args.join('').replace(/[^0-9]/g, '');
+
+        if (!number) {
+            return await sock.sendMessage(
+                jid,
+                {
+                    text: `❌ Usage:\n\n.jadibot 919999999999`
+                },
+                { quoted: msg }
+            );
+        }
+
+        try {
+            await sock.sendMessage(
+                jid,
+                {
+                    text: "⏳ Generating Pair Code... Please wait."
+                },
+                { quoted: msg }
+            );
+
+            // 🔄 നമ്മൾ പുതിയതായി ഉണ്ടാക്കിയ കിടിലൻ ഫങ്ക്ഷൻ വിളിക്കുന്നു
+            // ഇതാണ് ബാക്ക്ഗ്രൗണ്ടിൽ വാട്സ്ആപ്പുമായി കണക്ട് ചെയ്ത് കോഡ് റിപ്ലൈ ആയി തരുന്നത്
+            startSubBot(number, true, sock, jid);
+
+        } catch (e) {
+            console.log("JADIBOT ERROR:", e);
+            await sock.sendMessage(
+                jid,
+                {
+                    text: "❌ Failed to generate pair code"
+                },
+                { quoted: msg }
+            );
+        }
+    }
+};

@@ -96,30 +96,33 @@ mentions:[target]
 },
 
 {
-    name:"rmwarn",
-    category:"group",
+    name: "rmwarn",
+    alias: ["rnwarn", "removewarn"], // നീ rnwarn എന്ന് അടിച്ചാലും ഇനി വർക്ക് ആകും
+    category: "group",
 
-    async execute(sock,msg){
-
+    async execute(sock, msg) {
         const jid = msg.key.remoteJid;
+        const target = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-        const target =
-            msg.message?.extendedTextMessage
-            ?.contextInfo?.mentionedJid?.[0];
-
-        if(!target)
-            return;
-
-        if(
-            global.warnData?.[jid]?.[target]
-            ?.length
-        ){
-            global.warnData[jid][target].pop();
+        // ആരെയും ടാഗ് ചെയ്തില്ലെങ്കിൽ സൈലന്റ് ആയി ഫെയിൽ ആവാതിരിക്കാൻ മെസ്സേജ് കൊടുക്കുന്നു
+        if (!target) {
+            return await sock.sendMessage(jid, { 
+                text: "❌ *Please tag a user to remove their warning!*\n*Example:* .rmwarn @user" 
+            }, { quoted: msg });
         }
 
-        await sock.sendMessage(jid,{
-            text:"✅ One warning removed"
-        });
+        // വാണിംഗ് ഉണ്ടെങ്കിൽ കുറയ്ക്കാൻ
+        if (global.warnData?.[jid]?.[target]?.length > 0) {
+            global.warnData[jid][target].pop();
+            await sock.sendMessage(jid, { 
+                text: `✅ *One warning removed for @${target.split("@")[0]}*`,
+                mentions: [target]
+            });
+        } else {
+            await sock.sendMessage(jid, { 
+                text: "⚠️ *This user has no warnings to remove!*" 
+            }, { quoted: msg });
+        }
     }
 },
 

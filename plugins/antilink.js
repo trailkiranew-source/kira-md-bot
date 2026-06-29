@@ -1,39 +1,142 @@
 module.exports = {
-    name: 'antilink',
-    alias: ['alink'],
-    category: 'group', // 🚨 കാറ്റഗറി മാറ്റി
-    description: 'Toggle WhatsApp Anti-link',
-    
-    async execute(sock, msg, args, isOwner) {
-        const jid = msg.key.remoteJid;
-        if (!jid.endsWith('@g.us')) return await sock.sendMessage(jid, { text: "❌ *This command can only be used in groups!*" }, { quoted: msg });
+    name: "antilink",
+    alias: ["alink"],
+    category: "group",
+    description: "Manage Anti-Link",
 
-        // 🚨 Admin Check 🚨
-        const sender = msg.key.participant || msg.key.remoteJid;
-        const groupMetadata = await sock.groupMetadata(jid);
-        const isAdmin = groupMetadata.participants.some(p => p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin'));
+    async execute(sock, msg, args, isOwner) {
+
+        const jid = msg.key.remoteJid;
+
+        if (!jid.endsWith("@g.us")) {
+            return sock.sendMessage(
+                jid,
+                {
+                    text: "❌ Group only command!"
+                },
+                { quoted: msg }
+            );
+        }
+
+        const sender =
+            msg.key.participant ||
+            msg.participant;
+
+        const metadata =
+            await sock.groupMetadata(jid);
+
+        const isAdmin =
+            metadata.participants.some(
+                p =>
+                    p.id === sender &&
+                    (
+                        p.admin === "admin" ||
+                        p.admin === "superadmin"
+                    )
+            );
 
         if (!isAdmin && !isOwner) {
-            return await sock.sendMessage(jid, { text: "❌ *Group Admins only!*" }, { quoted: msg });
+            return sock.sendMessage(
+                jid,
+                {
+                    text: "❌ Admin only!"
+                },
+                { quoted: msg }
+            );
         }
 
-        global.antilinkChats = global.antilinkChats || [];
-        const action = (args[0] || "").toLowerCase();
+        global.antilinkChats =
+            global.antilinkChats || [];
 
+        global.antilinkMode =
+            global.antilinkMode || {};
+
+        const action =
+            (args[0] || "").toLowerCase();
+
+        const mode =
+            (args[1] || "delete")
+                .toLowerCase();
+
+        // .antilink on
         if (action === "on") {
-            if (!global.antilinkChats.includes(jid)) {
+
+            if (
+                !["warn", "delete", "kick"]
+                    .includes(mode)
+            ) {
+                return sock.sendMessage(
+                    jid,
+                    {
+                        text:
+`❌ Invalid mode!
+
+Example:
+.antilink on warn
+.antilink on delete
+.antilink on kick`
+                    },
+                    { quoted: msg }
+                );
+            }
+
+            if (
+                !global.antilinkChats.includes(jid)
+            ) {
                 global.antilinkChats.push(jid);
             }
-            return sock.sendMessage(jid, { text: "✅ *WhatsApp Anti-Link Enabled!*" }, { quoted: msg });
+
+            global.antilinkMode[jid] =
+                mode;
+
+            return sock.sendMessage(
+                jid,
+                {
+                    text:
+`✅ AntiLink Enabled
+
+Mode: ${mode.toUpperCase()}`
+                },
+                { quoted: msg }
+            );
         }
 
+        // .antilink off
         if (action === "off") {
-            global.antilinkChats = global.antilinkChats.filter(x => x !== jid);
-            return sock.sendMessage(jid, { text: "❌ *WhatsApp Anti-Link Disabled!*" }, { quoted: msg });
+
+            global.antilinkChats =
+                global.antilinkChats.filter(
+                    x => x !== jid
+                );
+
+            delete global.antilinkMode[jid];
+
+            return sock.sendMessage(
+                jid,
+                {
+                    text:
+"❌ AntiLink Disabled"
+                },
+                { quoted: msg }
+            );
         }
 
-        return sock.sendMessage(jid, { 
-            text: `*🔗 ANTI-LINK (WhatsApp Only)*\n\nTurn on/off WhatsApp link protection:\n\n.antilink on\n.antilink off` 
-        }, { quoted: msg });
+        // Menu
+        return sock.sendMessage(
+            jid,
+            {
+                text:
+`╭━━━〔 ANTILINK 〕━━━⬣
+
+.antilink on
+.antilink on warn
+.antilink on delete
+.antilink on kick
+.antilink off
+
+╰━━━━━━━━━━━━━━⬣`
+            },
+            { quoted: msg }
+        );
     }
 };

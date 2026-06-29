@@ -12,23 +12,33 @@ module.exports = {
 
     async execute(sock, msg, args) {
         const jid = msg.key.remoteJid;
+        
+        // 1. Ratio കൊടുത്തോ എന്ന് ചെക്ക് ചെയ്യുന്നു
         const inputRatio = (args && Array.isArray(args) ? args.join('') : '').trim();
+        
         if (!inputRatio || !inputRatio.includes(':')) {
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: "❌ *Please provide the ratio!*\n\n*Example:*\n.resize 9:16 (For Reels/Status)\n.resize 16:9 (For YouTube)\n.resize 1:1 (For Square)\n\n*(Reply to a video or image with this command)*" 
+            }, { quoted: msg });
         }
+
+        // 2. വീഡിയോയോ ഫോട്ടോയോ റിപ്ലൈ ചെയ്തോ എന്ന് ചെക്ക് ചെയ്യുന്നു
         const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!quoted || (!quoted.imageMessage && !quoted.videoMessage)) {
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: "❌ *Please reply to an image or video!*" 
+            }, { quoted: msg });
         }
 
+        // Ratio നമ്പറുകൾ കറക്റ്റ് ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു
         const [wRatio, hRatio] = inputRatio.split(':').map(Number);
         if (isNaN(wRatio) || isNaN(hRatio)) {
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
-            return;
+            return await sock.sendMessage(jid, { 
+                text: "❌ *Invalid ratio format! Use something like 16:9 or 9:16*" 
+            }, { quoted: msg });
         }
 
+        // എല്ലാം കറക്റ്റ് ആണെങ്കിൽ പ്രോസസ്സ് തുടങ്ങുന്നു
         await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
         let inputPath, outputPath;
@@ -63,18 +73,20 @@ module.exports = {
                         .run();
                 });
                 const videoBuffer = fs.readFileSync(outputPath);
-                await sock.sendMessage(jid, { video: videoBuffer, mimetype: 'video/mp4', caption: "KIRA X MD" });
+                await sock.sendMessage(jid, { video: videoBuffer, mimetype: 'video/mp4', caption: "🎬 *Resized by KIRA X MD*" }, { quoted: msg });
             } else {
                 await sharp(inputPath)
                     .resize(targetWidth, targetHeight, { fit: "cover" })
                     .toFile(outputPath);
                 const imgBuffer = fs.readFileSync(outputPath);
-                await sock.sendMessage(jid, { image: imgBuffer, caption: "KIRA X MD" });
+                await sock.sendMessage(jid, { image: imgBuffer, caption: "🖼️ *Resized by KIRA X MD*" }, { quoted: msg });
             }
             await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
         } catch (err) {
             console.error(err);
-            await sock.sendMessage(jid, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(jid, { 
+                text: "❌ *Failed to resize the media!*" 
+            }, { quoted: msg });
         } finally {
             try {
                 if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);

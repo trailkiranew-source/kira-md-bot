@@ -162,44 +162,60 @@ https://chat.whatsapp.com/${code}`
 
 {
     name: "leave",
-    category: "group",
+    category: "owner", // കാറ്റഗറി മാറ്റിയിട്ടുണ്ട് 
 
     async execute(sock, msg) {
-
         const jid = msg.key.remoteJid;
+        
+        // 1. മെസ്സേജ് അയച്ചത് ആരാണെന്ന് കണ്ടുപിടിക്കാൻ
+        const sender = msg.key.participant || msg.key.remoteJid;
 
-        if (!jid.endsWith("@g.us")) return;
+        // 2. ഓണർ ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു (അല്ലെങ്കിൽ ബ്ലോക്ക് ചെയ്യും)
+        // (ബോട്ടിന്റെ സ്വന്തം നമ്പറിൽ നിന്ന് അയച്ചതാണോ എന്നറിയാൻ msg.key.fromMe സഹായിക്കും)
+        if (!msg.key.fromMe && sender !== `${global.ownerNumber}@s.whatsapp.net`) {
+            return await sock.sendMessage(jid, { 
+                text: "❌ *This command is restricted to the Bot Owner!*" 
+            }, { quoted: msg });
+        }
 
-        await sock.sendMessage(jid,{
-            text:"👋 Bye..."
-        });
+        // ഗ്രൂപ്പിൽ ആണോ എന്ന് ചെക്ക് ചെയ്യുന്നു
+        if (!jid.endsWith("@g.us")) {
+            return await sock.sendMessage(jid, { 
+                text: "❌ *This command can only be used in groups!*" 
+            }, { quoted: msg });
+        }
 
+        await sock.sendMessage(jid, { text: "👋 Bye..." });
+        
+        // ബോട്ട് ഗ്രൂപ്പിൽ നിന്ന് ലെഫ്റ്റ് ആകുന്നു
         await sock.groupLeave(jid);
     }
 },
 
 {
     name: "quoted",
-    category: "group",
+    category: "owner",
 
     async execute(sock, msg) {
-
         const jid = msg.key.remoteJid;
+        const sender = msg.key.participant || msg.key.remoteJid;
 
-        const quoted =
-            msg.message?.extendedTextMessage
-            ?.contextInfo?.quotedMessage;
-
-        if (!quoted) {
-            return sock.sendMessage(jid,{
-                text:"❌ Reply to a message"
-            });
+        // ഓണർ ചെക്ക് ഇവിടെയും കൊടുത്തു
+        if (!msg.key.fromMe && sender !== `${global.ownerNumber}@s.whatsapp.net`) {
+            return await sock.sendMessage(jid, { 
+                text: "❌ *This command is restricted to the Bot Owner!*" 
+            }, { quoted: msg });
         }
 
-        await sock.sendMessage(
-            jid,
-            { forward: { message: quoted } }
-        );
+        const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+        if (!quoted) {
+            return sock.sendMessage(jid, { 
+                text: "❌ *Reply to a message to forward it!*" 
+            }, { quoted: msg });
+        }
+
+        await sock.sendMessage(jid, { forward: { message: quoted } });
     }
 },
 

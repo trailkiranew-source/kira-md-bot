@@ -11,6 +11,7 @@ const {
 const P = require("pino");
 
 const { commands, loadPlugins } = require("./lib/plugins");
+global.commands = commands;
 loadPlugins();
 global.commands = commands;
 
@@ -338,9 +339,11 @@ const isOwner = sender === global.ownerNumber;
 
 // anti spam code
 
+if (!msg.message) return;
+
 const text =
-    msg.message.conversation ||
-    msg.message.extendedTextMessage?.text ||
+    msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
     "";
     if (
     isGroup &&
@@ -371,6 +374,152 @@ Word: ${found}
                 "remove"
             );
         } catch {}
+    }
+}
+
+if (
+    isGroup &&
+    global.antilinkChats.includes(jid)
+) {
+
+    const linkRegex =
+        /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
+
+    if (
+        linkRegex.test(text) &&
+        !isOwner
+    ) {
+
+        const metadata =
+            await sock.groupMetadata(jid);
+
+        const member =
+            metadata.participants.find(
+                p => p.id === sender
+            );
+
+        const isAdmin =
+            member?.admin === "admin" ||
+            member?.admin === "superadmin";
+
+        if (isAdmin) return;
+
+        const mode =
+            global.antilinkMode?.[jid] ||
+            "delete";
+
+        if (mode === "warn") {
+
+            await sock.sendMessage(
+                jid,
+                {
+                    text:
+`⚠️ Link Detected
+
+@${sender.split("@")[0]}`,
+                    mentions:[sender]
+                }
+            );
+
+            return;
+        }
+
+        if (mode === "delete") {
+
+            await sock.sendMessage(
+                jid,
+                {
+                    delete: msg.key
+                }
+            );
+
+            return;
+        }
+
+        if (mode === "kick") {
+
+            try {
+
+                await sock.sendMessage(
+                    jid,
+                    {
+                        delete: msg.key
+                    }
+                );
+
+                await sock.groupParticipantsUpdate(
+                    jid,
+                    [sender],
+                    "remove"
+                );
+
+            } catch (e) {
+                console.log(
+                    "ANTILINK ERROR:",
+                    e
+                );
+            }
+
+            return;
+        }
+    }
+} {
+
+    const linkRegex =
+/(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
+
+    if (
+        linkRegex.test(text) &&
+        !isOwner
+    ) {
+        console.log("LINK DETECTED");
+
+        const metadata =
+            await sock.groupMetadata(jid);
+
+        const member = metadata.participants.find(
+    p => p.id === sender
+);
+
+const isAdmin =
+    member?.admin === "admin" ||
+    member?.admin === "superadmin";
+
+if (isAdmin) return;
+
+        await sock.sendMessage(
+            jid,
+            {
+                text:
+`🚫 WhatsApp Link Detected
+
+@${sender.split("@")[0]}`,
+                mentions: [sender]
+            }
+        );
+
+        try {
+
+            await sock.sendMessage(
+                jid,
+                {
+                    delete: msg.key
+                }
+            );
+            console.log("TRYING TO REMOVE USER");
+
+            await sock.groupParticipantsUpdate(
+                jid,
+                [sender],
+                "remove"
+            );
+
+        } catch (e) {
+            console.log(
+                "ANTILINK ERROR:",
+                e
+            );
+        }
     }
 }
 
@@ -634,6 +783,88 @@ if (
 
 }
 
-startKira().catch(err => {
-    console.error("START ERROR:", err);
+async function loadSubBots() {
+
+    const basePath = "./jadibot";
+
+    if (!fs.existsSync(basePath)) return;
+
+    const folders = fs.readdirSync(basePath);
+
+    for (const number of folders) {
+
+        try {
+
+            const sessionPath =
+                `${basePath}/${number}`;
+
+            if (
+                !fs.existsSync(
+                    `${sessionPath}/creds.json`
+                )
+            ) continue;
+
+            const {
+                state,
+                saveCreds
+            } = await useMultiFileAuthState(
+                sessionPath
+            );
+
+            const { version } =
+                await fetchLatestBaileysVersion();
+
+            const subSock =
+                makeWASocket({
+                    version,
+                    logger: P({
+                        level: "silent"
+                    }),
+                    auth: state
+                });
+
+            subSock.ev.on(
+                "creds.update",
+                saveCreds
+            );
+
+            subSock.ev.on(
+                "connection.update",
+                ({ connection }) => {
+
+                    if (
+                        connection === "open"
+                    ) {
+
+                        console.log(
+`🤖 SUBBOT ONLINE: ${number}`
+                        );
+
+                    }
+                }
+            );
+
+        } catch (err) {
+
+            console.log(
+                "SUBBOT ERROR:",
+                err
+            );
+        }
+    }
+}
+
+(async () => {
+
+   // await loadSubBots();
+
+    await startKira();
+
+})().catch(err => {
+
+    console.error(
+        "START ERROR:",
+        err
+    );
+
 });
